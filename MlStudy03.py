@@ -126,8 +126,6 @@ for train_index, test_index in skfolds.split(X_train, y_train_5):#매 반복마�
   n_correct = sum(y_pred == y_test_fold)
   print(n_correct / len(y_pred))
 
-
-
 # accuracy지표의 단점(편향적인 모델도 성능 좋게 나올수가 있음)
 
 #무조건 5가 아니라고 예측하는 모델(현재 Dataset중 10%만이 5고 나머지 90%는 5가 아니긴함)
@@ -230,7 +228,7 @@ def plot_precision_recall_vs_threshold(precisions, recalls, thresholds): #임계
 plt.figure(figsize=(8, 4))
 plot_precision_recall_vs_threshold(precisions, recalls, thresholds)
 plt.xlim([-700000, 700000])
-save_fig("precision_recall_vs_threshold_plot")
+#save_fig("precision_recall_vs_threshold_plot")
 plt.show()
 
 def plot_precision_vs_recall(precisions, recalls): #재현율에 대한 정밀도 그래프(정밀도가 메인으로 먼저 보임)
@@ -242,7 +240,7 @@ def plot_precision_vs_recall(precisions, recalls): #재현율에 대한 정밀�
 plot_precision_vs_recall(precisions,recalls)
 
 # 특정 조건에서의 임곗값 얼마인지 추출
-threshold_90_precision = thresholds[np.argmax(precisions>=0.90)] #정밀도 적어도 90%일때 가장 낮은 임곗값 ->근데 교재설명 이해안됨 argmin써야 조건만족하는것중
+threshold_90_precision = thresholds[np.argmax(precisions>=0.90)] #정밀도 적어도 90%일때 가장 낮은 임곗값 argmin써야 조건만족하는것중
 #정밀도90일때(True값들 쭉 반환) 그중 최댓값(여기선 첫번쨰True,즉 최소임곗값)의 위치값을 반환함. 그게 thresholds인덱스로 들어간다.
 # np.argmax()? 최댓값의 인덱스값 출력하는거. 최댓값 어딨는지 위치 반환.
 print(threshold_90_precision) # 163633
@@ -291,3 +289,110 @@ plt.legend(loc="lower right")
 plt.show() # 랜덤포레스트가 SGD분류기보다 훨 성능이 좋다.(왼쪽위로 더욱 수렴해있음)
 
 roc_auc_score(y_train_5, y_scores_forest) #auc면적(점수) 굉장히 높다.정밀도,재현율도 해보면 각각 99%, 86.6% 나옴.
+
+"""# 3.4 다중분류"""
+
+#다중분류방법? OvR vs OvO (원 versus Rest) (원 Versus All) 전략
+#Ex)특정 숫자 하나만 구분하는 숫자별(0~9)이진분류기 10개를 훈련시켜 클래스가 10개인 숫자 이미지 분류 시스템 만들기.<이게 OvR>
+# 또는 0+1 0+2 ... 이렇게 45개 조합에 대해 One Versus One으로 훈련
+
+"""OvO는 각 분류기를 훈련시킬때(MNIST의 경우 45개) 구별할 두 클래스에 해당하는 샘플만 필요하다는 특징(장점)이 있다.
+Ex) 0과1구분? 전체 샘플중 0, 1에 해당하는 것만 넣어서 훈련(소형세트로 훈련)대신 여러번 훈련시켜야 한다.
+OvR은 반대로, 거대한 훈련세트에서 몇개(Mnist는10개)의 분류기 훈련.(SVM은 이방식이 느리다고함.) -> But, 대부분 OvR방식을 이진분류 알고리즘이 선호.
+"""
+
+from sklearn.svm import SVC #사포트벡터분류기. 
+#다중클래스분류작업, 이진분류알고리즘(SVM)사용시 자동으로 OvO나 OvR을 실행한다.(0~9이미지와 0~9답을 담은 train의 X,y넣어서 훈련시킴.)
+
+#svm_clf = SVC() # SVM으로 했더니 겁나 느리다. 걍 sgd로 바꿔서 실험해보는것이 나을듯.
+#svm_clf.fit(X_train,y_train)
+#svm_clf.predict([some_digit])
+sgd_clf = SGDClassifier()
+sgd_clf.fit(X_train,y_train)
+sgd_clf.predict([some_digit])
+
+#some_digit_scores = svm_clf.decision_function([some_digit]) #결정함수가 10개의 점수를 가지고 있음.(OvO로 총10개 모델 학습했기 떄문. 이중 최댓값으로 분류함)
+#some_digit_scores
+some_digit_scores = sgd_clf.decision_function([some_digit])
+some_digit_scores
+
+#np.argmax(some_digit_scores) # 위에서 분류한 놈의 클래스를 출력한다.
+# svm_clf.classes_ # 0~9까지 클래스탙입을 호출.
+# svm_clf.classes_[5] #인덱스5에 해당하는 클래스값, 5를 출력
+np.argmax(some_digit_scores)
+sgd_clf.classes_
+sgd_clf.classes_[3]
+
+"""OvO나 OvR강제로 쓰게 하는법(함수 임포트하기)
+
+밑에서 SGD분류가로 실험하긴 했으나, 사실 SGD는 그 자체로 다중 클래스 분류가 가능한 놈임. So, 별도로 OvO나 OvR을 적용할 필요가 없다.(임포트할 필요 X)
+"""
+
+#from sklearn.multiclass import OneVsRestClassifier
+#ovr_clf = OneVsRestClassifier(SVC())
+#ovr_clf.fit(X_train,y_train)
+#ovr_clf.predict([some_digit])
+#len(ovr_clf.estimators_)
+
+from sklearn.multiclass import OneVsOneClassifier
+ovo_clf = OneVsOneClassifier(SGDClassifier())
+ovo_clf.fit(X_train,y_train)
+ovo_clf.predict([some_digit]) #ovr로는 sgd가 3이라 예측하더니, ovo로 SGD학습시키니 5라고 제대로 맞췄다.
+
+cross_val_score(sgd_clf, X_train, y_train, cv=3, scoring="accuracy") # 교차검증으로 SGD분류기 정확도를 평가해보겠다. #물론 실제로 모델이 잘될진 모름! 참고용이라 보면 될듯.
+#왜? test데이터나 실제현실Data를 잘 예측해 줘야하니까.
+
+# 스케일링으로 성능 높이기
+
+from sklearn.preprocessing import StandardScaler
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train.astype(np.float64)) # Scale을 통해 정확도 높이기
+cross_val_score(sgd_clf, X_train_scaled, y_train, cv=3, scoring="accuracy") #성능이 평균 5%씩은 더 증가했다.
+
+"""# 3.5 에러분석"""
+
+y_train_pred= cross_val_predict(sgd_clf, X_train_scaled, y_train, cv=3)
+conf_mx = confusion_matrix(y_train, y_train_pred)
+conf_mx
+
+#오차행렬 이미지로 표현
+plt.matshow(conf_mx, cmap=plt.cm.gray)
+plt.show()
+
+row_sums = conf_mx.sum(axis=1, keepdims=True) #오차갯수로만하면, 이미지갯수 많은 클래스가 불리하니, 비율로 나타내보겠다.
+norm_conf_mx = conf_mx/row_sums
+
+np.fill_diagonal(norm_conf_mx,0) #0을0으로 1을1로, 즉 제대로맞춘 주대각선만 0으로 채워서 그래프를 그리겠다.
+plt.matshow(norm_conf_mx, cmap=plt.cm.gray)
+plt.show() # 이미지가 밝을수록 에러가 많음.
+
+cl_a,cl_b =3,5 # 3과 5에 대한 샘플을 분석해보겠다. (모델이 이 둘을 많이 헷갈려 하므로)
+# X_왼오   // 왼쪽이 실제, 오른쪾은 예측
+X_aa = X_train[(y_train==cl_a) & (y_train_pred ==cl_a)] # 타겟값이 3인데 3이라 잘 예측한경우의 이미지
+X_ab = X_train[(y_train ==cl_a) & (y_train_pred == cl_b)] #타겟값이 3인데 5라 잘못 예측한 경우 
+X_ba = X_train[(y_train==cl_b)&(y_train_pred==cl_a)] #타겟값이 5인데 3이라 잘못 예측한 경우
+X_bb = X_train[(y_train==cl_b)&(y_train_pred==cl_b)] #타겟값이 5인데 5라 잘 예측한 경우
+pit.figure(figsize(8,8))
+#subplot? 그림 여러개! subplot(num1 num2 num3) num1=열갯수 num2=행갯수 num3=해당 그림의 위치
+plt.subplot(221); plot_digits(X_aa[:25], images_per_row=5)
+plt.subplot(222); plot_digits(X_ab[:25], images_per_row=5)
+plt.subplot(223); plot_digits(X_ba[:25], images_per_row=5)
+plt.subplot(224); plot_digits(X_bb[:25], images_per_row=5)
+plt.show()
+
+"""# 3.6 다중 레이블 분류
+
+분류기가 샘플마다 여러개의 클래스를 출력해야 할때(다중 레이블)
+-> Ex) 한 이미지에 밥이 있느냐? 이 사진은 누구냐?(한픽셀정보->한인물 레이블X)
+한 이미지에 밥,리사,스티븐있느냐? 이 사진 누구누구?(한픽셀->여러인물 구분,다중레이블)
+"""
+
+from sklearn.neighbors import KNeighborsClassifier
+y_train_large = (y_train >=7)
+y_train_odd = (y_train%2==1)
+y_multilabel = np.c_[y_train_large, y_train_odd]
+
+knn_clf = KNeighborsClassifier()
+knn_clf.fit(X_train, y_multilabel)
+
+knn_clf.predict([some_digit])
